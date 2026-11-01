@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#000000"/>
+      <stop offset="100%" stop-color="#0A0A0A"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#888888"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="400" fill="url(#bgGrad)"/>
+  
+  <!-- Abstract data structure -->
+  <g transform="translate(950, 200)" stroke="#444444" stroke-width="2" fill="none">
+    <rect x="-80" y="-100" width="160" height="40" stroke="#FFFFFF"/>
+    <rect x="-80" y="-40" width="160" height="40" />
+    <rect x="-80" y="20" width="160" height="40" />
+    <rect x="-80" y="80" width="160" height="40" />
+    <line x1="80" y1="-80" x2="120" y2="-80" stroke="#FFFFFF" stroke-dasharray="4 4"/>
+    <line x1="80" y1="-20" x2="120" y2="-20" stroke="#FFFFFF" stroke-dasharray="4 4"/>
+    <line x1="80" y1="40" x2="120" y2="40" stroke="#FFFFFF" stroke-dasharray="4 4"/>
+    <line x1="80" y1="100" x2="120" y2="100" stroke="#FFFFFF" stroke-dasharray="4 4"/>
+  </g>
+
+  <text x="60" y="200" font-family="Arial, sans-serif" font-size="90" font-weight="900" fill="url(#textGrad)" letter-spacing="2">NEXUS-WAL</text>
+  <text x="65" y="240" font-family="Courier New, monospace" font-size="18" fill="#888888" letter-spacing="2">HIGH-PERFORMANCE STORAGE ENGINE</text>
+  
+  <g transform="translate(65, 280)">
+    <rect x="0" y="0" width="450" height="1" fill="#444444" opacity="0.5"/>
+    <text x="0" y="20" font-family="Courier New, monospace" font-size="12" fill="#AAAAAA">&gt; DESIGN: <tspan fill="#FFFFFF">CRASH CONSISTENT</tspan></text>
+    <text x="0" y="40" font-family="Courier New, monospace" font-size="12" fill="#AAAAAA">&gt; INTEGRITY: <tspan fill="#FFFFFF">CRC32 CHECKSUMS</tspan></text>
+    <text x="0" y="60" font-family="Courier New, monospace" font-size="12" fill="#FFFFFF" font-weight="bold">&gt; LATENCY: DETERMINISTIC.</text>
+  </g>
+</svg>
