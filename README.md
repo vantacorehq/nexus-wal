@@ -4,8 +4,8 @@
   <h1>NEXUS-WAL</h1>
   <p><b>ZERO-DEPENDENCY WRITE-AHEAD LOG ENGINE.</b></p>
   
-  <img src="https://img.shields.io/badge/STATUS-PRODUCTION_READY-000000?style=for-the-badge&logo=rust" alt="Status">
-  <img src="https://img.shields.io/badge/CONSISTENCY-CRASH_SAFE-FFFFFF?style=for-the-badge&logo=databricks" alt="Consistency">
+  <img src="https://img.shields.io/badge/STATUS-DEMO-000000?style=for-the-badge&logo=rust" alt="Status">
+  <img src="https://img.shields.io/badge/RECORD-LEN_PREFIX_%2B_CRC32-FFFFFF?style=for-the-badge" alt="Consistency">
   <img src="https://img.shields.io/badge/DEPENDENCIES-ZERO-333333?style=for-the-badge" alt="Dependencies">
 </div>
 
@@ -15,16 +15,16 @@
 
 Every robust database, distributed system, and message broker relies on a Write-Ahead Log (WAL) to guarantee data durability. Before data is applied to the main storage engine, it is appended to a WAL. If the system crashes, the WAL is replayed to restore the system to a consistent state.
 
-**NEXUS-WAL is a pure Rust implementation of this core architectural component.**
+**NEXUS-WAL is a small pure Rust append-only log.**
 
-It is not a database. It is the engine that makes databases survive power outages. It handles sequential writes, computes CRC32 checksums for data integrity, and executes `fsync` syscalls to ensure data hits the physical disk.
+It is not a database. Each append writes a length-prefixed record, a CRC32, and calls `sync_data`. Recovery stops on a checksum mismatch and ignores a truncated tail.
 
 ## ⚡ ARCHITECTURAL PRINCIPLES
 
-*   **Crash Consistency:** Data is synced to the disk (`sync_data`) immediately upon writing. No data loss on unexpected shutdown.
-*   **Zero-Copy Recovery:** The recovery process streams data from disk, validating checksums in real-time.
-*   **Data Integrity:** Every record is protected by a CRC32 checksum. Corrupted records are detected and isolated instantly.
-*   **Zero Dependencies:** Pure `std` implementation. No external crates for hashing, I/O, or serialization.
+*   **Append:** Each record is a little-endian length prefix, the key, the value, and a CRC32 of those bytes. `append` writes that record and then calls `sync_data`.
+*   **Recovery:** The file is read and decoded record by record. A CRC mismatch stops recovery and is not returned as a record. A truncated tail is not returned as a record.
+*   **Not a database:** This does not sync the directory entry, and it does not turn a process crash into a proven durability guarantee beyond `sync_data` returning. It is not production-ready storage.
+*   **Zero Dependencies:** Pure `std`. No external crates for hashing, I/O, or serialization.
 
 ## 🛠️ DEPLOYMENT
 
