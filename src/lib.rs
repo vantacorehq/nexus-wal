@@ -157,52 +157,113 @@ pub fn decode_records(buffer: &[u8]) -> DecodeResult {
     }
 }
 
+/// Append-only write-ahead log.
+///
+/// Each successful `append` writes one length-prefixed CRC32 record and
+/// then calls `sync_data`. Recovery returns only fully present records whose
+/// CRC matches. A truncated tail or CRC mismatch stops decoding.
 pub struct WalEngine {
     file: File,
     path: String,
+    /// Number of records successfully recovered / appended in this process.
+    records: u64,
 }
 
 impl WalEngine {
+    /// Open or create a WAL at `path`.
     pub fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        let path_ref = path.as_ref();
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
-            .open(&path)?;
+            .open(path_ref)?;
         Ok(Self {
             file,
-            path: path.as_ref().to_string_lossy().into_owned(),
+            path: path_ref.to_string_lossy().into_owned(),
+            records: 0,
         })
     }
 
+    /// Path of the log file.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// How many records this engine has seen (recovered + appended).
+    pub fn len(&self) -> u64 {
+        self.records
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.records == 0
+    }
+
+    /// Append a key/value record and force durability (`sync_data`).
     pub fn append(&mut self, key: &str, value: &str) -> io::Result<()> {
         let record = encode_record(key, value);
         self.file.seek(SeekFrom::End(0))?;
         self.file.write_all(&record)?;
         self.file.sync_data()?;
+        self.records += 1;
         Ok(())
     }
 
-    pub fn recover(&mut self) -> io::Result<usize> {
-        println!("[NEXUS-WAL] Recovering log: {}", self.path);
+    /// Append multiple records, syncing once at the end (faster batch).
+    pub fn append_batch(&mut self, pairs: &[(&str, &str)]) -> io::Result<()> {
+        self.file.seek(SeekFrom::End(0))?;
+        for &(key, value) in pairs {
+            let record = encode_record(key, value);
+            self.file.write_all(&record)?;
+            self.records += 1;
+        }
+        self.file.sync_data()?;
+        Ok(())
+    }
+
+    /// Force the current file contents to durable storage.
+    pub fn sync(&mut self) -> io::Result<()> {
+        self.file.sync_data()
+    }
+
+    /// Read and decode the entire log.
+    ///
+    /// Returns all valid records plus the reason decoding stopped.
+    /// Does **not** print anything (library code stays quiet).
+    pub fn recover(&mut self) -> io::Result<DecodeResult> {
         self.file.seek(SeekFrom::Start(0))?;
         let mut buffer = Vec::new();
         self.file.read_to_end(&mut buffer)?;
         let decoded = decode_records(&buffer);
-        for rec in &decoded.records {
-            println!("  -> Recovered: [{}] = {}", rec.key, rec.value);
+        self.records = decoded.records.len() as u64;
+        Ok(decoded)
+    }
+
+    /// Convenience: recover and return only the list of records.
+    pub fn recover_records(&mut self) -> io::Result<Vec<Record>> {
+        Ok(self.recover()?.records)
+    }
+
+    /// Truncate the log so that only the first `n` complete records remain.
+    /// Useful after a clean checkpoint.
+    pub fn truncate_to(&mut self, n: usize) -> io::Result<()> {
+        self.file.seek(SeekFrom::Start(0))?;
+        let mut buffer = Vec::new();
+        self.file.read_to_end(&mut buffer)?;
+        let decoded = decode_records(&buffer);
+        if n > decoded.records.len() {
+            return Ok(());
         }
-        if decoded.stop == StopReason::CrcMismatch {
-            println!(
-                "  [!] CRC mismatch at offset {}. Log corrupted, stopping recovery.",
-                decoded.stop_offset
-            );
+        let mut kept = Vec::new();
+        for rec in decoded.records.iter().take(n) {
+            kept.extend_from_slice(&encode_record(&rec.key, &rec.value));
         }
-        println!(
-            "[NEXUS-WAL] Recovery complete. Total records: {}",
-            decoded.records.len()
-        );
-        Ok(decoded.records.len())
+        self.file.set_len(0)?;
+        self.file.seek(SeekFrom::Start(0))?;
+        self.file.write_all(&kept)?;
+        self.file.sync_data()?;
+        self.records = n as u64;
+        Ok(())
     }
 }
 
@@ -264,5 +325,35 @@ mod tests {
         let decoded = decode_records(&only);
         assert_eq!(decoded.stop, StopReason::Truncated);
         assert!(decoded.records.is_empty());
+    }
+
+    #[test]
+    fn engine_append_recover_batch_truncate() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("nexus-wal-test-{}.wal", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+
+        let mut wal = WalEngine::open(&path).unwrap();
+        wal.append("a", "1").unwrap();
+        wal.append("b", "2").unwrap();
+        assert_eq!(wal.len(), 2);
+
+        let recs = wal.recover_records().unwrap();
+        assert_eq!(recs.len(), 2);
+        assert_eq!(recs[0].key, "a");
+        assert_eq!(recs[1].value, "2");
+
+        wal.append_batch(&[("c", "3"), ("d", "4")]).unwrap();
+        let recs = wal.recover_records().unwrap();
+        assert_eq!(recs.len(), 4);
+
+        wal.truncate_to(2).unwrap();
+        let recs = wal.recover_records().unwrap();
+        assert_eq!(recs.len(), 2);
+        assert_eq!(recs[0].key, "a");
+        assert_eq!(recs[1].key, "b");
+        assert_eq!(wal.len(), 2);
+
+        let _ = std::fs::remove_file(&path);
     }
 }
