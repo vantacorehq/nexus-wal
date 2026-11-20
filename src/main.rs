@@ -20,7 +20,11 @@ fn main() -> io::Result<()> {
 
     println!("\n--- Simulating System Crash and Restart ---\n");
     let mut wal_recovered = WalEngine::open(log_path)?;
-    wal_recovered.recover()?;
+    let decoded = wal_recovered.recover()?;
+    println!("[NEXUS-WAL] Recovered {} records (stop={:?})", decoded.records.len(), decoded.stop);
+    for rec in &decoded.records {
+        println!("  -> [{}] = {}", rec.key, rec.value);
+    }
 
     Ok(())
 }
