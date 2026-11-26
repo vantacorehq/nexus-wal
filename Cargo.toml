@@ -1,9 +1,9 @@
 [package]
 name = "nexus-wal"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 license = "MIT"
-description = "High-performance zero-dependency Write-Ahead Log. Length-prefixed CRC32 records, recovery, batch append, truncate."
+description = "High-performance zero-dependency Write-Ahead Log. Length-prefixed CRC32 records, recovery, group commit, page alignment, fault injection."
 readme = "README.md"
 repository = "https://github.com/vantacorehq/nexus-wal"
 keywords = ["wal", "write-ahead-log", "database", "storage", "durability"]
@@ -11,3 +11,10 @@ categories = ["database-implementations", "filesystem"]
 
 [dependencies]
 # ZERO DEPENDENCIES.
+
+[[bin]]
+name = "nexus-wal"
+path = "src/main.rs"
+
+[package.metadata.docs.rs]
+all-features = true
