@@ -64,7 +64,6 @@ pub fn decode_records(buffer: &[u8]) -> DecodeResult {
     let mut records = Vec::new();
     let mut offset = 0usize;
     while offset < buffer.len() {
-        // Page padding is zeros — treat as clean end.
         if buffer[offset..].iter().all(|&b| b == 0) {
             return DecodeResult {
                 records,
@@ -302,6 +301,10 @@ impl<S: Storage> WalEngine<S> {
         self.records == 0
     }
 
+    pub fn durable_len(&self) -> u64 {
+        self.durable_offset
+    }
+
     pub fn append_buffered(&mut self, key: &str, value: &str) {
         let rec = encode_record(key, value);
         self.pending.extend_from_slice(&rec);
@@ -417,7 +420,7 @@ mod tests {
     fn empty_and_padding() {
         assert_eq!(decode_records(&[]).stop, StopReason::End);
         let mut bytes = encode_record("x", "y");
-        bytes.resize(4096, 0); // simulate page pad
+        bytes.resize(4096, 0);
         let decoded = decode_records(&bytes);
         assert_eq!(decoded.stop, StopReason::End);
         assert_eq!(decoded.records.len(), 1);
@@ -440,8 +443,7 @@ mod tests {
         let storage = FaultyStorage::new(FaultConfig::default());
         let mut wal = WalEngine::with_storage(storage).unwrap();
         wal.append_batch(&[("a", "1"), ("b", "2")]).unwrap();
-        let len = wal.storage.len().unwrap();
-        assert_eq!(len % PAGE_SIZE as u64, 0);
+        assert_eq!(wal.durable_len() % PAGE_SIZE as u64, 0);
         let recs = wal.recover_records().unwrap();
         assert_eq!(recs.len(), 2);
     }
